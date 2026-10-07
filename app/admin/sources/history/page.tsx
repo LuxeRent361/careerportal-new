@@ -419,8 +419,7 @@ export default async function MonitoringHistoryPage() {
 
                       <p className="mt-1 text-[10px] font-medium text-slate-400">
                         {formatDate(
-                          item.started_at ||
-                            item.created_at
+                          item.started_at ?? item.created_at ?? ""
                         )}
                       </p>
                     </div>

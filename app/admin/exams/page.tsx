@@ -24,9 +24,9 @@ type ExamRow = {
   is_featured: boolean;
   is_published: boolean;
   created_at: string | null;
-  categories: {
-    name: string;
-  } | null;
+  categories?: {
+  name: string;
+} | null;
 };
 
 function createServiceClient() {
@@ -110,7 +110,12 @@ export default async function ExamsAdminPage({
     console.error("Exams admin list error:", error);
   }
 
-  const exams = (data || []) as ExamRow[];
+  const exams = (data || []).map((item) => ({
+  ...item,
+  categories: Array.isArray(item.categories)
+    ? item.categories[0] ?? null
+    : item.categories ?? null,
+})) as ExamRow[];
 
   const total = exams.length;
   const published = exams.filter((item) => item.is_published).length;

@@ -96,7 +96,12 @@ export default async function EducationAdminPage({
     console.error("Education list error:", error);
   }
 
-  const education = (data || []) as EducationRow[];
+  const education = (data || []).map((item) => ({
+  ...item,
+  categories: Array.isArray(item.categories)
+    ? item.categories[0] ?? null
+    : item.categories ?? null,
+})) as EducationRow[];
 
   const total = education.length;
   const published = education.filter((item) => item.is_published).length;
