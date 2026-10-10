@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -53,79 +54,42 @@ export default async function MonitoringHistoryPage() {
 
   const supabase = createAdminClient();
 
-  /*
-   * We intentionally read the existing source_import_runs table
-   * without assuming unsupported columns.
-   *
-   * If some optional columns do not exist, the page will show
-   * a clear database message instead of crashing silently.
-   */
-
   const { data, error } = await supabase
     .from("source_import_runs")
     .select("*")
-    .order("created_at", {
-      ascending: false,
-    })
+    .order("created_at", { ascending: false })
     .limit(200);
 
   const rows = (data ?? []) as Record<string, unknown>[];
 
   const history: HistoryItem[] = rows.map((row) => ({
     id: String(row.id ?? ""),
-    status:
-      row.status !== undefined && row.status !== null
-        ? String(row.status)
-        : null,
-
+    status: row.status == null ? null : String(row.status),
     source_code:
-      row.source_code !== undefined &&
-      row.source_code !== null
-        ? String(row.source_code)
-        : null,
-
+      row.source_code == null ? null : String(row.source_code),
     source_name:
-      row.source_name !== undefined &&
-      row.source_name !== null
-        ? String(row.source_name)
-        : null,
-
+      row.source_name == null ? null : String(row.source_name),
     found: toNumber(row.found),
     created: toNumber(row.created),
     failed: toNumber(row.failed),
-
     started_at:
-      row.started_at !== undefined &&
-      row.started_at !== null
-        ? String(row.started_at)
-        : null,
-
+      row.started_at == null ? null : String(row.started_at),
     created_at:
-      row.created_at !== undefined &&
-      row.created_at !== null
-        ? String(row.created_at)
-        : null,
-
+      row.created_at == null ? null : String(row.created_at),
     error_message:
-      row.error_message !== undefined &&
-      row.error_message !== null
-        ? String(row.error_message)
-        : null,
+      row.error_message == null ? null : String(row.error_message),
   }));
 
   const successCount = history.filter(
-    (item) =>
-      normalizeStatus(item.status) === "success"
+    (item) => normalizeStatus(item.status) === "success"
   ).length;
 
   const failedCount = history.filter(
-    (item) =>
-      normalizeStatus(item.status) === "failed"
+    (item) => ["failed", "error"].includes(normalizeStatus(item.status))
   ).length;
 
   const runningCount = history.filter(
-    (item) =>
-      normalizeStatus(item.status) === "running"
+    (item) => normalizeStatus(item.status) === "running"
   ).length;
 
   const totalFound = history.reduce(
@@ -134,258 +98,198 @@ export default async function MonitoringHistoryPage() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-blue-600">
-            Automation
-          </p>
+    <div className="mx-auto w-full max-w-[1600px] space-y-6 p-1 sm:space-y-8">
+      <header className="overflow-hidden rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-purple-100 p-5 shadow-sm dark:border-violet-900 dark:from-[#21172f] dark:via-[#171121] dark:to-[#2c1d42] sm:p-8">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white/80 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.16em] text-violet-700 dark:border-violet-800 dark:bg-white/5 dark:text-violet-300">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-violet-500" />
+              Automation Center
+            </span>
 
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-            Monitoring History
-          </h1>
+            <h1 className="mt-4 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-4xl">
+              Monitoring History
+            </h1>
 
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-            View previous source monitoring runs, their status and
-            discovered records.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/admin/sources"
-            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-600 transition hover:bg-slate-50"
-          >
-            ← Source Monitoring
-          </Link>
-
-          <Link
-            href="/admin/import-queue"
-            className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-blue-700"
-          >
-            Import Queue →
-          </Link>
-        </div>
-      </div>
-
-      {/* Database error */}
-      {error ? (
-        <section className="rounded-2xl border border-red-200 bg-red-50 p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-lg">
-              ⚠️
-            </div>
-
-            <div>
-              <h2 className="text-sm font-extrabold text-red-800">
-                Unable to load monitoring history
-              </h2>
-
-              <p className="mt-1 text-xs leading-5 text-red-700">
-                {error.message}
-              </p>
-            </div>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+              Track previous source checks, imported records, failures
+              and the latest monitoring activity.
+            </p>
           </div>
-        </section>
-      ) : null}
 
-      {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/admin/sources"
+              className="inline-flex items-center justify-center rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm font-bold text-violet-800 transition hover:border-violet-400 hover:bg-violet-50 dark:border-violet-800 dark:bg-white/5 dark:text-violet-200 dark:hover:bg-white/10"
+            >
+              ← Source Monitoring
+            </Link>
+
+            <Link
+              href="/admin/import-queue"
+              className="inline-flex items-center justify-center rounded-xl bg-violet-700 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-violet-700/20 transition hover:bg-violet-800"
+            >
+              Import Queue →
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {error && (
+        <section className="rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-900 dark:bg-red-950/30">
+          <h2 className="font-extrabold text-red-800 dark:text-red-300">
+            Unable to load monitoring history
+          </h2>
+          <p className="mt-2 break-words text-sm leading-6 text-red-700 dark:text-red-200">
+            {error.message}
+          </p>
+        </section>
+      )}
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Runs"
           value={history.length}
           icon="📊"
+          tone="violet"
         />
-
         <StatCard
           label="Successful"
           value={successCount}
           icon="✓"
+          tone="green"
         />
-
         <StatCard
           label="Failed"
           value={failedCount}
           icon="!"
+          tone="red"
         />
-
         <StatCard
           label="Records Found"
           value={totalFound}
           icon="📥"
+          tone="purple"
         />
-      </div>
+      </section>
 
-      {/* Status summary */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm dark:border-violet-900 dark:bg-[#1d1729] sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-base font-extrabold text-slate-900">
+            <h2 className="text-base font-black text-slate-900 dark:text-white">
               Monitoring Overview
             </h2>
-
-            <p className="mt-1 text-xs leading-5 text-slate-500">
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               Summary of the latest stored monitoring activity.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <StatusPill
-              label="Success"
-              value={successCount}
-              type="success"
-            />
-
-            <StatusPill
-              label="Failed"
-              value={failedCount}
-              type="failed"
-            />
-
-            <StatusPill
-              label="Running"
-              value={runningCount}
-              type="running"
-            />
+            <StatusPill label="Success" value={successCount} type="success" />
+            <StatusPill label="Failed" value={failedCount} type="failed" />
+            <StatusPill label="Running" value={runningCount} type="running" />
           </div>
         </div>
       </section>
 
-      {/* History table */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-extrabold text-slate-900">
-                Recent Monitoring Runs
-              </h2>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Latest 200 monitoring records.
-              </p>
-            </div>
-
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-extrabold text-slate-600">
-              {history.length} runs
-            </span>
+      <section className="overflow-hidden rounded-2xl border border-violet-100 bg-white shadow-sm dark:border-violet-900 dark:bg-[#1d1729]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-100 px-5 py-4 dark:border-violet-900 sm:px-6">
+          <div>
+            <h2 className="text-base font-black text-slate-900 dark:text-white">
+              Recent Monitoring Runs
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Latest 200 monitoring records.
+            </p>
           </div>
+
+          <span className="rounded-full bg-violet-100 px-3 py-1.5 text-xs font-extrabold text-violet-800 dark:bg-violet-950 dark:text-violet-200">
+            {history.length} runs
+          </span>
         </div>
 
         {history.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-2xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-100 text-3xl dark:bg-violet-950">
               📊
             </div>
-
-            <h3 className="mt-4 text-base font-extrabold text-slate-900">
+            <h3 className="mt-4 text-lg font-black text-slate-900 dark:text-white">
               No monitoring history yet
             </h3>
-
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-              Run a source check from Source Monitoring and its
-              monitoring activity will appear here when recorded.
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
+              Run a source check from Source Monitoring. Recorded
+              monitoring activity will appear here.
             </p>
-
             <Link
               href="/admin/sources"
-              className="mt-5 inline-flex rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-blue-700"
+              className="mt-5 inline-flex rounded-xl bg-violet-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-violet-800"
             >
               Go to Source Monitoring
             </Link>
           </div>
         ) : (
           <>
-            {/* Desktop */}
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[950px]">
+              <table className="w-full min-w-[950px] text-left">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                    <th className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      Date
-                    </th>
-
-                    <th className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      Source
-                    </th>
-
-                    <th className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      Status
-                    </th>
-
-                    <th className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      Found
-                    </th>
-
-                    <th className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      Created
-                    </th>
-
-                    <th className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      Failed
-                    </th>
-
-                    <th className="px-5 py-3 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      Details
-                    </th>
+                  <tr className="border-b border-violet-100 bg-violet-50/70 dark:border-violet-900 dark:bg-white/[0.03]">
+                    {["Date", "Source", "Status", "Found", "Created", "Failed", "Details"].map(
+                      (heading) => (
+                        <th
+                          key={heading}
+                          className="px-5 py-4 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400"
+                        >
+                          {heading}
+                        </th>
+                      )
+                    )}
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-violet-50 dark:divide-violet-900/70">
                   {history.map((item) => (
                     <tr
                       key={item.id}
-                      className="transition hover:bg-slate-50"
+                      className="transition hover:bg-violet-50/60 dark:hover:bg-white/[0.03]"
                     >
-                      <td className="whitespace-nowrap px-5 py-4 text-xs font-semibold text-slate-500">
-                        {formatDate(
-                          item.started_at ??
-                            item.created_at ??
-                            null
+                      <td className="whitespace-nowrap px-5 py-4 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        {formatDate(item.started_at || item.created_at || null)}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <p className="text-sm font-extrabold text-slate-900 dark:text-white">
+                          {item.source_name || item.source_code || "Unknown Source"}
+                        </p>
+                        {item.source_code && (
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">
+                            {item.source_code}
+                          </p>
                         )}
                       </td>
 
                       <td className="px-5 py-4">
-                        <div>
-                          <p className="text-xs font-extrabold text-slate-800">
-                            {item.source_name ||
-                              item.source_code ||
-                              "Unknown Source"}
-                          </p>
-
-                          {item.source_code ? (
-                            <p className="mt-0.5 text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
-                              {item.source_code}
-                            </p>
-                          ) : null}
-                        </div>
+                        <StatusBadge status={item.status} />
                       </td>
 
-                      <td className="px-5 py-4">
-                        <StatusBadge
-                          status={item.status}
-                        />
-                      </td>
-
-                      <td className="px-5 py-4 text-xs font-extrabold text-slate-700">
+                      <td className="px-5 py-4 text-sm font-extrabold text-slate-700 dark:text-slate-200">
                         {item.found ?? 0}
                       </td>
 
-                      <td className="px-5 py-4 text-xs font-extrabold text-emerald-700">
+                      <td className="px-5 py-4 text-sm font-extrabold text-emerald-700 dark:text-emerald-400">
                         {item.created ?? 0}
                       </td>
 
-                      <td className="px-5 py-4 text-xs font-extrabold text-red-600">
+                      <td className="px-5 py-4 text-sm font-extrabold text-red-600 dark:text-red-400">
                         {item.failed ?? 0}
                       </td>
 
-                      <td className="max-w-[260px] px-5 py-4">
+                      <td className="max-w-[280px] px-5 py-4">
                         {item.error_message ? (
-                          <p className="text-xs leading-5 text-red-600">
+                          <p className="break-words text-xs leading-5 text-red-600 dark:text-red-300">
                             {item.error_message}
                           </p>
                         ) : (
-                          <p className="text-xs text-slate-400">
+                          <p className="text-xs text-slate-400 dark:text-slate-500">
                             No error reported.
                           </p>
                         )}
@@ -396,64 +300,40 @@ export default async function MonitoringHistoryPage() {
               </table>
             </div>
 
-            {/* Mobile */}
-            <div className="divide-y divide-slate-100 md:hidden">
+            <div className="divide-y divide-violet-100 dark:divide-violet-900 md:hidden">
               {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-5"
-                >
+                <article key={item.id} className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-extrabold text-slate-800">
-                        {item.source_name ||
-                          item.source_code ||
-                          "Unknown Source"}
-                      </p>
-
-                      {item.source_code ? (
-                        <p className="mt-1 text-[10px] font-extrabold uppercase tracking-wider text-blue-600">
+                      <h3 className="break-words text-sm font-black text-slate-900 dark:text-white">
+                        {item.source_name || item.source_code || "Unknown Source"}
+                      </h3>
+                      {item.source_code && (
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">
                           {item.source_code}
                         </p>
-                      ) : null}
-
-                      <p className="mt-1 text-[10px] font-medium text-slate-400">
-                        {formatDate(
-                          item.started_at ?? item.created_at ?? ""
-                        )}
+                      )}
+                      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                        {formatDate(item.started_at || item.created_at || null)}
                       </p>
                     </div>
-
-                    <StatusBadge
-                      status={item.status}
-                    />
+                    <StatusBadge status={item.status} />
                   </div>
 
                   <div className="mt-4 grid grid-cols-3 gap-2">
-                    <MiniStat
-                      label="Found"
-                      value={item.found ?? 0}
-                    />
-
-                    <MiniStat
-                      label="Created"
-                      value={item.created ?? 0}
-                    />
-
-                    <MiniStat
-                      label="Failed"
-                      value={item.failed ?? 0}
-                    />
+                    <MiniStat label="Found" value={item.found ?? 0} />
+                    <MiniStat label="Created" value={item.created ?? 0} />
+                    <MiniStat label="Failed" value={item.failed ?? 0} />
                   </div>
 
-                  {item.error_message ? (
-                    <div className="mt-3 rounded-xl border border-red-100 bg-red-50 p-3">
-                      <p className="text-xs leading-5 text-red-700">
+                  {item.error_message && (
+                    <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30">
+                      <p className="break-words text-xs leading-5 text-red-700 dark:text-red-300">
                         {item.error_message}
                       </p>
                     </div>
-                  ) : null}
-                </div>
+                  )}
+                </article>
               ))}
             </div>
           </>
@@ -463,68 +343,46 @@ export default async function MonitoringHistoryPage() {
   );
 }
 
-function toNumber(
-  value: unknown
-): number | null {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
+function toNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
     return null;
   }
 
   const number = Number(value);
-
-  return Number.isFinite(number)
-    ? number
-    : null;
+  return Number.isFinite(number) ? number : null;
 }
 
-function normalizeStatus(
-  value: string | null
-) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
+function normalizeStatus(value: string | null) {
+  return String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
 
-function StatusBadge({
-  status,
-}: {
-  status: string | null;
-}) {
-  const normalized =
-    normalizeStatus(status);
+function StatusBadge({ status }: { status: string | null }) {
+  const normalized = normalizeStatus(status);
 
-  if (normalized === "success") {
-    return (
-      <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-emerald-700">
-        SUCCESS
-      </span>
-    );
-  }
+  const styles: Record<string, string> = {
+    success:
+      "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300",
+    failed:
+      "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300",
+    error:
+      "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300",
+    running:
+      "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300",
+  };
 
-  if (normalized === "failed" || normalized === "error") {
-    return (
-      <span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-red-700">
-        FAILED
-      </span>
-    );
-  }
-
-  if (normalized === "running") {
-    return (
-      <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-amber-700">
-        RUNNING
-      </span>
-    );
-  }
+  const label =
+    normalized === "error"
+      ? "FAILED"
+      : (status || "UNKNOWN").replace(/[_-]+/g, " ").toUpperCase();
 
   return (
-    <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-extrabold uppercase text-slate-600">
-      {status || "UNKNOWN"}
+    <span
+      className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-black tracking-wide ${
+        styles[normalized] ??
+        "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-200"
+      }`}
+    >
+      {label}
     </span>
   );
 }
@@ -540,36 +398,27 @@ function StatusPill({
 }) {
   const styles = {
     success:
-      "bg-emerald-50 text-emerald-700",
+      "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300",
     failed:
-      "bg-red-50 text-red-700",
+      "border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300",
     running:
-      "bg-amber-50 text-amber-700",
+      "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300",
   };
 
   return (
-    <span
-      className={`rounded-full px-3 py-2 text-xs font-extrabold ${styles[type]}`}
-    >
+    <span className={`rounded-full border px-3 py-2 text-xs font-extrabold ${styles[type]}`}>
       {label}: {value}
     </span>
   );
 }
 
-function MiniStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
+function MiniStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl bg-slate-50 p-3 text-center">
-      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+    <div className="rounded-xl border border-violet-100 bg-violet-50/70 p-3 text-center dark:border-violet-900 dark:bg-white/[0.03]">
+      <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
         {label}
       </p>
-
-      <p className="mt-1 text-sm font-extrabold text-slate-800">
+      <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">
         {value}
       </p>
     </div>
@@ -580,41 +429,49 @@ function StatCard({
   label,
   value,
   icon,
+  tone,
 }: {
   label: string;
   value: number;
   icon: string;
+  tone: "violet" | "green" | "red" | "purple";
 }) {
+  const tones = {
+    violet:
+      "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-300",
+    green:
+      "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
+    red:
+      "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300",
+    purple:
+      "border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300",
+  };
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-2xl border border-violet-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg dark:border-violet-900 dark:bg-[#1d1729]">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
+        <p className="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
           {label}
         </p>
-
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-lg">
+        <span className={`flex h-11 w-11 items-center justify-center rounded-xl border text-lg ${tones[tone]}`}>
           {icon}
         </span>
       </div>
-
-      <p className="mt-4 text-2xl font-extrabold text-slate-900">
-        {value}
+      <p className="mt-4 text-3xl font-black tracking-tight text-slate-950 dark:text-white">
+        {value.toLocaleString("en-IN")}
       </p>
-    </div>
+    </article>
   );
 }
 
 function formatDate(value: string | null) {
-  if (!value) {
-    return "Date unavailable";
-  }
+  if (!value) return "Date unavailable";
 
-  try {
-    return new Intl.DateTimeFormat("en-IN", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }

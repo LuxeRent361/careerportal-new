@@ -1,619 +1,349 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import "./home-enhancements.css";
 
 const categories = [
-  {
-    title: "Government Jobs",
-    count: "Recruitment",
-    href: "/jobs",
-    symbol: "G",
-  },
-  {
-    title: "Private Jobs",
-    count: "Opportunities",
-    href: "/private-jobs",
-    symbol: "P",
-  },
-  {
-    title: "Results",
-    count: "Latest results",
-    href: "/results",
-    symbol: "R",
-  },
-  {
-    title: "Admit Cards",
-    count: "Download",
-    href: "/admit-card",
-    symbol: "A",
-  },
-  {
-    title: "Exams",
-    count: "Notifications",
-    href: "/exam",
-    symbol: "E",
-  },
-  {
-    title: "Education",
-    count: "Guidance",
-    href: "/education",
-    symbol: "Ed",
-  },
-];
-
-const navigation = [
-  { title: "Jobs", href: "/jobs" },
-  { title: "Private", href: "/private-jobs" },
-  { title: "Exams", href: "/exam" },
-  { title: "Results", href: "/results" },
-  { title: "Admit Cards", href: "/admit-card" },
-  { title: "Education", href: "/education" },
+  { title: "Government Jobs", description: "Latest recruitment notifications", href: "/jobs", icon: "▣", number: "01" },
+  { title: "Private Jobs", description: "Companies & private opportunities", href: "/private-jobs", icon: "◆", number: "02" },
+  { title: "Government Exams", description: "Exam notifications & details", href: "/exam", icon: "◈", number: "03" },
+  { title: "Results", description: "Latest exam results", href: "/results", icon: "✓", number: "04" },
+  { title: "Admit Cards", description: "Download hall tickets", href: "/admit-cards", icon: "▤", number: "05" },
+  { title: "Education", description: "Courses, careers & guidance", href: "/education", icon: "◇", number: "06" },
 ];
 
 const jobs = [
-  {
-    code: "SSC",
-    title: "SSC CGL 2026 Recruitment",
-    organization: "Staff Selection Commission",
-    tags: ["Graduate", "Central Govt.", "Online"],
-    deadline: "View notification",
-  },
-  {
-    code: "RRB",
-    title: "RRB NTPC Recruitment 2026",
-    organization: "Railway Recruitment Board",
-    tags: ["Graduate", "Railway", "Multiple Posts"],
-    deadline: "View notification",
-  },
-  {
-    code: "UPSC",
-    title: "UPSC Civil Services Examination",
-    organization: "Union Public Service Commission",
-    tags: ["Graduate", "All India", "Civil Services"],
-    deadline: "View notification",
-  },
-  {
-    code: "CTET",
-    title: "CTET 2026 Examination",
-    organization: "Central Board of Secondary Education",
-    tags: ["Teaching", "Education", "Online"],
-    deadline: "View notification",
-  },
-];
-
-const featured = [
-  {
-    title: "Latest recruitment notifications",
-    meta: "Government Jobs",
-  },
-  {
-    title: "Recently released examination results",
-    meta: "Results",
-  },
-  {
-    title: "Admit cards and examination schedules",
-    meta: "Admit Card",
-  },
-  {
-    title: "Important exam notifications",
-    meta: "Exams",
-  },
+  { title: "SSC CGL 2026", organization: "Staff Selection Commission", location: "All India", qualification: "Graduate", deadline: "Check official notice", tag: "SSC", href: "/jobs" },
+  { title: "RRB NTPC 2026", organization: "Railway Recruitment Board", location: "All India", qualification: "12th / Graduate", deadline: "Check official notice", tag: "RAILWAY", href: "/jobs" },
+  { title: "UPSC Civil Services", organization: "Union Public Service Commission", location: "All India", qualification: "Graduate", deadline: "Check official notice", tag: "UPSC", href: "/jobs" },
+  { title: "CTET 2026", organization: "Central Board of Secondary Education", location: "All India", qualification: "12th / Graduate", deadline: "Check official notice", tag: "TEACHING", href: "/exam" },
 ];
 
 const updates = [
-  {
-    type: "RESULT",
-    date: "Latest",
-    title: "Latest Government Exam Results",
-    description:
-      "Find recently released results, merit lists and official result information.",
-    href: "/results",
-  },
-  {
-    type: "ADMIT CARD",
-    date: "Latest",
-    title: "Admit Card & Exam Updates",
-    description:
-      "Check examination schedules and official admit card information.",
-    href: "/admit-card",
-  },
-  {
-    type: "EDUCATION",
-    date: "Guide",
-    title: "Education & Career Guidance",
-    description:
-      "Explore useful education information, courses and career resources.",
-    href: "/education",
-  },
+  { type: "RESULT", title: "Latest Government Exam Results", text: "Find examination results and official result links.", href: "/results" },
+  { type: "ADMIT CARD", title: "Admit Card & Exam Updates", text: "Check hall tickets, examination dates and download links.", href: "/admit-cards" },
+  { type: "EXAM", title: "Upcoming Government Exams", text: "Explore exam details, eligibility and important dates.", href: "/exam" },
+  { type: "PRIVATE JOB", title: "Private Job Opportunities", text: "Explore company openings and private-sector opportunities.", href: "/private-jobs" },
 ];
 
 function SearchIcon() {
   return (
-    <svg
-      width="17"
-      height="17"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+      <path d="m16.5 16.5 4.5 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
 
 function ArrowIcon() {
   return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5 12h14" />
-      <path d="m13 6 6 6-6 6" />
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-function MenuIcon({ open }: { open: boolean }) {
-  if (open) {
-    return (
-      <svg
-        width="19"
-        height="19"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M6 6l12 12" />
-        <path d="M18 6 6 18" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg
-      width="19"
-      height="19"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4 6h16" />
-      <path d="M4 12h16" />
-      <path d="M4 18h16" />
-    </svg>
-  );
+function CheckIcon() {
+  return <span className="cp-check-icon" aria-hidden="true">✓</span>;
 }
 
-export default function Home() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
+export default function HomePage() {
+  const [search, setSearch] = useState("");
+  const [darkMode, setDarkMode] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   useEffect(() => {
-    document.body.style.overflow = mobileMenuOpen ? "hidden" : "";
+    try {
+      const saved = window.localStorage.getItem("careerportal-theme");
+      const enabled = saved === "dark";
+      setDarkMode(enabled);
+      document.documentElement.dataset.cpTheme = enabled ? "dark" : "light";
+    } catch {
+      document.documentElement.dataset.cpTheme = "light";
+    }
+  }, []);
 
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [mobileMenuOpen]);
+  function toggleTheme() {
+    const next = !darkMode;
+    setDarkMode(next);
+    document.documentElement.dataset.cpTheme = next ? "dark" : "light";
+    try {
+      window.localStorage.setItem("careerportal-theme", next ? "dark" : "light");
+    } catch {
+      // Theme still works for the current page if storage is unavailable.
+    }
+  }
 
-  const closeMobileMenu = () => {
-    setMobileMenuOpen(false);
-  };
+  const suggestions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return [];
 
-  const searchHref = searchValue.trim()
-    ? `/search?q=${encodeURIComponent(searchValue.trim())}`
-    : "/search";
+    const jobMatches = jobs
+      .filter((job) =>
+        `${job.title} ${job.organization} ${job.tag} ${job.qualification}`
+          .toLowerCase()
+          .includes(query)
+      )
+      .map((job) => ({ title: job.title, detail: job.organization, href: job.href, type: "JOB" }));
+
+    const categoryMatches = categories
+      .filter((category) => category.title.toLowerCase().includes(query))
+      .map((category) => ({ title: category.title, detail: category.description, href: category.href, type: "SECTION" }));
+
+    return [...jobMatches, ...categoryMatches].slice(0, 5);
+  }, [search]);
+
+  function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = search.trim();
+    window.location.href = query ? `/search?q=${encodeURIComponent(query)}` : "/search";
+  }
+
+  const activeUpdate = updates[activeSlide % updates.length];
 
   return (
-    <main>
+    <main className="cp-home">
+      <div className="cp-theme-bar">
+        <span><span className="cp-live-dot" /> CareerPortal Updates</span>
+        <button className="cp-theme-toggle" type="button" onClick={toggleTheme} aria-label="Toggle light and dark mode">
+          <span aria-hidden="true">{darkMode ? "☀" : "☾"}</span>
+          {darkMode ? "Light mode" : "Dark mode"}
+        </button>
+      </div>
 
-
-      {/* =========================================
-          HERO
-      ========================================= */}
-      <section className="hero">
-        <div className="container-main hero-grid">
-          <div className="hero-copy">
-            <div className="eyebrow">
-              <span className="eyebrow-dot" />
-              Your career, better informed
-            </div>
-
-            <h1 className="hero-title">
-              Find the right
-              <span className="accent"> opportunity.</span>
-            </h1>
-
-            <p className="hero-description">
-              Discover government jobs, private opportunities, exams,
-              results, admit cards and education updates through one
-              focused career platform.
-            </p>
-
-            <form
-              className="hero-search"
-              onSubmit={(event) => {
-                event.preventDefault();
-                window.location.href = searchHref;
-              }}
-            >
-              <div className="hero-search-field">
-                <SearchIcon />
-
-                <input
-                  type="search"
-                  value={searchValue}
-                  onChange={(event) => setSearchValue(event.target.value)}
-                  placeholder="Search jobs, exams, results or organizations"
-                  aria-label="Search CareerPortal"
-                />
-              </div>
-
-              <button type="submit" className="hero-search-button">
-                Search
-              </button>
-            </form>
-
-            <div className="hero-meta">
-              <span>Government Jobs</span>
-              <span>Private Jobs</span>
-              <span>Results</span>
-              <span>Exams</span>
-            </div>
-          </div>
-
-          <div className="hero-visual" aria-hidden="true">
-            <div className="hero-orbit" />
-
-            <div className="dashboard-card">
-              <div className="dashboard-top">
-                <div className="dashboard-label">
-                  CareerPortal / Live updates
-                </div>
-
-                <div className="live-pill">UPDATED</div>
-              </div>
-
-              <div className="dashboard-title">
-                Latest opportunities
-              </div>
-
-              <div className="dashboard-line" />
-
-              <div className="mini-job">
-                <div className="mini-logo">SSC</div>
-
-                <div className="mini-job-content">
-                  <div className="mini-job-title">
-                    SSC CGL 2026
-                  </div>
-
-                  <div className="mini-job-meta">
-                    Graduate · Central Government
-                  </div>
-                </div>
-
-                <div className="mini-status">NEW</div>
-              </div>
-
-              <div className="mini-job">
-                <div className="mini-logo">RRB</div>
-
-                <div className="mini-job-content">
-                  <div className="mini-job-title">
-                    RRB NTPC 2026
-                  </div>
-
-                  <div className="mini-job-meta">
-                    Railway · Multiple Posts
-                  </div>
-                </div>
-
-                <div className="mini-status">NEW</div>
-              </div>
-
-              <div className="mini-job">
-                <div className="mini-logo">UP</div>
-
-                <div className="mini-job-content">
-                  <div className="mini-job-title">
-                    Civil Services Examination
-                  </div>
-
-                  <div className="mini-job-meta">
-                    UPSC · Graduate
-                  </div>
-                </div>
-
-                <div className="mini-status">VIEW</div>
-              </div>
-            </div>
-
-            <div className="floating-card">
-              <div className="floating-card-label">
-                One platform
-              </div>
-
-              <div className="floating-card-number">06+</div>
-
-              <div className="floating-card-text">
-                major career information categories
-              </div>
-            </div>
-          </div>
+      {/* ANNOUNCEMENT */}
+      <section className="cp-announcement">
+        <div className="cp-wide cp-announcement-inner">
+          <span className="cp-live-dot" />
+          <strong>CareerPortal Updates</strong>
+          <span>Jobs, exams, results, admit cards & education</span>
+          <Link href="/jobs">Explore opportunities <ArrowIcon /></Link>
         </div>
       </section>
 
-      {/* =========================================
-          QUICK CATEGORIES
-      ========================================= */}
-      <section className="quick-section">
-        <div className="container-main">
-          <div className="quick-grid">
+      {/* TRENDING SLIDER */}
+      <section className="cp-trending cp-wide" aria-label="Trending updates">
+        <div className="cp-trending-label"><span className="cp-pulse-dot" /> TRENDING</div>
+        <Link href={activeUpdate.href} className="cp-trending-content" key={activeUpdate.title}>
+          <span className="cp-trending-type">{activeUpdate.type}</span>
+          <strong>{activeUpdate.title}</strong>
+          <span className="cp-trending-description">{activeUpdate.text}</span>
+          <ArrowIcon />
+        </Link>
+        <div className="cp-slider-controls">
+          <button type="button" onClick={() => setActiveSlide((activeSlide + updates.length - 1) % updates.length)} aria-label="Previous update">‹</button>
+          <span>{activeSlide + 1}/{updates.length}</span>
+          <button type="button" onClick={() => setActiveSlide((activeSlide + 1) % updates.length)} aria-label="Next update">›</button>
+        </div>
+      </section>
+
+      {/* HERO */}
+      <section className="cp-hero">
+        <div className="cp-hero-grid-bg" />
+        <div className="cp-wide cp-hero-inner">
+          <div className="cp-hero-copy">
+            <div className="cp-eyebrow"><span className="cp-eyebrow-dot" /> INDIA&apos;S CAREER INFORMATION PLATFORM</div>
+            <h1>Find your next <span>opportunity.</span></h1>
+            <p className="cp-hero-description">
+              Discover government jobs, private jobs, exams, results, admit cards and useful education resources — all in one place.
+            </p>
+
+            <form className="cp-search-box" onSubmit={handleSearch}>
+              <div className="cp-search-icon"><SearchIcon /></div>
+              <input
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => window.setTimeout(() => setShowSuggestions(false), 150)}
+                placeholder="Search SSC, UPSC, Railway, results..."
+                aria-label="Search CareerPortal"
+                autoComplete="off"
+              />
+              <button type="submit">Search <ArrowIcon /></button>
+
+              {showSuggestions && search.trim() && (
+                <div className="cp-search-suggestions">
+                  <div className="cp-suggestion-heading">Quick results</div>
+                  {suggestions.length ? suggestions.map((item) => (
+                    <Link href={item.href} key={`${item.type}-${item.title}`} className="cp-suggestion">
+                      <span className="cp-suggestion-icon"><SearchIcon /></span>
+                      <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+                      <span className="cp-suggestion-type">{item.type}</span>
+                    </Link>
+                  )) : (
+                    <div className="cp-no-suggestions">No matching homepage items. Press Search to search the website.</div>
+                  )}
+                  <button className="cp-search-all" type="submit">Search the website <ArrowIcon /></button>
+                </div>
+              )}
+            </form>
+
+            <div className="cp-hero-trust">
+              <span><CheckIcon /> Official-source focused</span>
+              <span><CheckIcon /> Easy to understand</span>
+              <span><CheckIcon /> Mobile friendly</span>
+            </div>
+            <div className="cp-hero-links">
+              <span>Popular:</span>
+              <Link href="/jobs">SSC</Link>
+              <Link href="/jobs">Railway</Link>
+              <Link href="/jobs">UPSC</Link>
+              <Link href="/exam">Teaching</Link>
+            </div>
+          </div>
+
+          {/* DECORATIVE DASHBOARD */}
+          <div className="cp-hero-visual">
+            <div className="cp-orbit cp-orbit-one" />
+            <div className="cp-orbit cp-orbit-two" />
+            <div className="cp-3d-card cp-main-dashboard">
+              <div className="cp-dashboard-head">
+                <div><span>CAREERPORTAL</span><strong>Opportunity Center</strong></div>
+                <div className="cp-dashboard-menu">•••</div>
+              </div>
+              <div className="cp-dashboard-stats">
+                <div><small>JOBS</small><strong>Explore</strong><span>Recruitment</span></div>
+                <div><small>EXAMS</small><strong>Prepare</strong><span>Exam updates</span></div>
+                <div><small>RESULTS</small><strong>Check</strong><span>Latest results</span></div>
+              </div>
+              <div className="cp-mini-title"><span>Explore opportunities</span><Link href="/jobs">View all ↗</Link></div>
+              {jobs.slice(0, 3).map((job, index) => (
+                <Link href={job.href} className="cp-mini-job" key={job.title}>
+                  <div className={`cp-mini-logo ${["blue", "green", "purple"][index]}`}>{job.tag.slice(0, 3)}</div>
+                  <div><strong>{job.title}</strong><span>{job.organization}</span></div>
+                  <b>›</b>
+                </Link>
+              ))}
+              <div className="cp-dashboard-footer"><span className="cp-secure"><span /> Explore official information</span><span>CareerPortal</span></div>
+            </div>
+            <div className="cp-floating-card cp-floating-top"><div className="cp-floating-icon">✓</div><div><strong>Stay informed</strong><span>Check official sources</span></div></div>
+            <div className="cp-floating-card cp-floating-bottom"><strong>06</strong><span>Career sections</span><small>One portal, more choices</small></div>
+            <div className="cp-3d-ring"><span /></div>
+          </div>
+        </div>
+        <div className="cp-hero-bottom"><div className="cp-wide cp-hero-bottom-grid"><span>Explore by category</span><div /><span>Scroll to discover ↓</span></div></div>
+      </section>
+
+      {/* CATEGORIES */}
+      <section className="cp-section cp-category-section">
+        <div className="cp-wide">
+          <div className="cp-section-heading">
+            <div><span className="cp-kicker">EXPLORE CAREERPORTAL</span><h2>Everything you need, in one place.</h2><p>Quickly jump to the section you are looking for.</p></div>
+            <Link href="/search" className="cp-outline-button">Search everything <ArrowIcon /></Link>
+          </div>
+          <div className="cp-category-grid">
             {categories.map((category) => (
-              <Link
-                href={category.href}
-                key={category.title}
-                className="quick-item"
-              >
-                <div className="quick-icon">
-                  {category.symbol}
-                </div>
-
-                <div className="quick-title">
-                  {category.title}
-                </div>
-
-                <div className="quick-count">
-                  {category.count}
-                </div>
+              <Link href={category.href} key={category.title} className="cp-category-card cp-tilt-card">
+                <div className="cp-category-number">{category.number}</div>
+                <div className="cp-category-icon">{category.icon}</div>
+                <div className="cp-category-content"><h3>{category.title}</h3><p>{category.description}</p></div>
+                <div className="cp-category-arrow"><ArrowIcon /></div>
               </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* =========================================
-          GOVERNMENT JOBS
-      ========================================= */}
-      <section className="jobs-section section-space">
-        <div className="container-main">
-          <div className="section-heading-row">
-            <div>
-              <div className="eyebrow">
-                <span className="eyebrow-dot" />
-                Government recruitment
-              </div>
-
-              <h2 className="section-title">
-                Latest government opportunities
-              </h2>
-
-              <p className="section-description">
-                Browse recruitment information in a clean format with
-                organization, eligibility and application details.
-              </p>
-            </div>
-
-            <Link href="/jobs" className="view-all">
-              View all jobs →
-            </Link>
+      {/* JOBS */}
+      <section className="cp-section cp-jobs-section">
+        <div className="cp-wide">
+          <div className="cp-section-heading">
+            <div><span className="cp-kicker">LATEST OPPORTUNITIES</span><h2>Government jobs worth checking.</h2><p>Explore recruitment information and opportunities matching your qualification.</p></div>
+            <Link href="/jobs" className="cp-text-button">View all jobs <ArrowIcon /></Link>
           </div>
-
-          <div className="jobs-layout">
-            <div className="job-list">
-              {jobs.map((job) => (
-                <Link
-                  href="/jobs"
-                  className="job-card"
-                  key={job.title}
-                >
-                  <div className="company-logo">
-                    {job.code}
-                  </div>
-
-                  <div className="job-main-content">
-                    <div className="job-title">
-                      {job.title}
-                    </div>
-
-                    <div className="job-org">
-                      {job.organization}
-                    </div>
-
-                    <div className="job-tags">
-                      {job.tags.map((tag) => (
-                        <span className="job-tag" key={tag}>
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="job-side">
-                    <div className="job-deadline-label">
-                      Application
-                    </div>
-
-                    <div className="job-deadline">
-                      {job.deadline}
-                    </div>
-
-                    <span className="job-arrow">
-                      <ArrowIcon />
-                    </span>
-                  </div>
+          <div className="cp-jobs-layout">
+            <div className="cp-jobs-grid">
+              {jobs.map((job, index) => (
+                <Link href={job.href} className="cp-job-card cp-tilt-card" key={job.title}>
+                  <div className="cp-job-top"><div className={`cp-job-logo job-${index + 1}`}>{job.tag.slice(0, 3)}</div><span className="cp-job-badge"><span className="cp-pulse-dot" />{job.tag}</span></div>
+                  <h3>{job.title}</h3>
+                  <p className="cp-job-org">{job.organization}</p>
+                  <div className="cp-job-details"><span>⌖ {job.location}</span><span>▣ {job.qualification}</span></div>
+                  <div className="cp-job-bottom"><span>{job.deadline}</span><span className="cp-job-open">Open <ArrowIcon /></span></div>
                 </Link>
               ))}
             </div>
-
-            <aside className="featured-panel">
-              <div className="featured-kicker">
-                CareerPortal focus
+            <aside className="cp-feature-card">
+              <div className="cp-feature-glow" />
+              <span className="cp-feature-kicker">CAREER TIP</span>
+              <h3>Don&apos;t apply only for one opportunity.</h3>
+              <p>Build a preparation routine and keep checking relevant recruitment, exam and result updates.</p>
+              <div className="cp-feature-list">
+                <div><CheckIcon /> Track important dates</div>
+                <div><CheckIcon /> Read the official notification</div>
+                <div><CheckIcon /> Verify eligibility before applying</div>
               </div>
-
-              <h3 className="featured-title">
-                Important career information, without the clutter.
-              </h3>
-
-              <p className="featured-text">
-                A focused place to discover recruitment, examination,
-                result and education updates.
-              </p>
-
-              <div className="featured-items">
-                {featured.map((item) => (
-                  <Link
-                    href="/jobs"
-                    className="featured-item"
-                    key={item.title}
-                  >
-                    <div className="featured-item-title">
-                      {item.title}
-                    </div>
-
-                    <div className="featured-item-meta">
-                      {item.meta}
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              <Link href="/education" className="cp-feature-button">Explore career guidance <ArrowIcon /></Link>
             </aside>
           </div>
         </div>
       </section>
 
-      {/* =========================================
-          RESULTS / ADMIT CARD / EDUCATION
-      ========================================= */}
-      <section className="content-section section-space">
-        <div className="container-main">
-          <div className="section-heading-row">
-            <div>
-              <div className="eyebrow">
-                <span className="eyebrow-dot" />
-                More career updates
-              </div>
-
-              <h2 className="section-title">
-                Stay ahead of what matters
-              </h2>
-
-              <p className="section-description">
-                Results, admit cards and education resources are
-                organized separately so visitors can quickly find
-                what they need.
-              </p>
-            </div>
-          </div>
-
-          <div className="content-grid">
-            {updates.map((update) => (
-              <Link
-                href={update.href}
-                className="content-card"
-                key={update.title}
-              >
-                <div className="content-card-top">
-                  <span className="content-type">
-                    {update.type}
-                  </span>
-
-                  <span className="content-date">
-                    {update.date}
-                  </span>
-                </div>
-
-                <h3>{update.title}</h3>
-
-                <p>{update.description}</p>
-
-                <span className="content-link">
-                  Explore section <ArrowIcon />
-                </span>
+      {/* UPDATES */}
+      <section className="cp-section cp-updates-section">
+        <div className="cp-wide">
+          <div className="cp-section-heading"><div><span className="cp-kicker">LATEST UPDATES</span><h2>Stay ahead of important updates.</h2><p>Use the dedicated sections to find the information you need.</p></div></div>
+          <div className="cp-update-grid">
+            {updates.map((item, index) => (
+              <Link href={item.href} key={item.type} className="cp-update-card cp-tilt-card">
+                <div className={`cp-update-number n-${index + 1}`}>0{index + 1}</div>
+                <div className="cp-update-content"><span>{item.type}</span><h3>{item.title}</h3><p>{item.text}</p><strong>Explore section <ArrowIcon /></strong></div>
               </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* =========================================
-          STATS
-      ========================================= */}
-      <section className="stats-section">
-        <div className="container-main">
-          <div className="stats-grid">
-            <div className="stat">
-              <div className="stat-number">01</div>
-              <div className="stat-label">
-                Unified career platform
-              </div>
-            </div>
-
-            <div className="stat">
-              <div className="stat-number">06+</div>
-              <div className="stat-label">
-                Core information sections
-              </div>
-            </div>
-
-            <div className="stat">
-              <div className="stat-number">24/7</div>
-              <div className="stat-label">
-                Information discovery
-              </div>
-            </div>
-
-            <div className="stat">
-              <div className="stat-number">1</div>
-              <div className="stat-label">
-                Simple search experience
-              </div>
-            </div>
+      {/* SLIDER */}
+      <section className="cp-section cp-showcase-section">
+        <div className="cp-wide">
+          <div className="cp-section-heading"><div><span className="cp-kicker">QUICK ACCESS</span><h2>Explore more on CareerPortal.</h2><p>Swipe on mobile or use the arrows to browse important sections.</p></div></div>
+          <div className="cp-category-slider">
+            {categories.map((category) => (
+              <Link href={category.href} key={category.title} className="cp-slider-card">
+                <span>{category.number}</span><strong>{category.title}</strong><small>{category.description}</small><ArrowIcon />
+              </Link>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* =========================================
-          CTA
-      ========================================= */}
-      <section className="cta-section">
-        <div className="container-main">
-          <div className="cta-box">
-            <h2>
-              One place for your next career move.
-            </h2>
-
-            <p>
-              Explore jobs, examinations, results, admit cards and
-              education resources through CareerPortal.
-            </p>
-
-            <Link href="/jobs" className="cta-button">
-              Explore opportunities
-            </Link>
+      {/* STATS */}
+      <section className="cp-stats-section">
+        <div className="cp-wide"><div className="cp-stats-shell">
+          <div className="cp-stats-intro"><span className="cp-kicker">YOUR CAREER HUB</span><h2>One platform.<br />Multiple possibilities.</h2><p>From finding a vacancy to understanding an exam, CareerPortal brings useful career information together.</p></div>
+          <div className="cp-stat-grid">
+            <div className="cp-stat"><strong>06</strong><span>Career sections</span></div>
+            <div className="cp-stat"><strong>24/7</strong><span>Access to information</span></div>
+            <div className="cp-stat"><strong>Mobile</strong><span>Responsive experience</span></div>
+            <div className="cp-stat"><strong>Official</strong><span>Verify before applying</span></div>
           </div>
+        </div></div>
+      </section>
+
+      {/* TRUST */}
+      <section className="cp-section cp-trust-section">
+        <div className="cp-wide"><div className="cp-trust-layout">
+          <div><span className="cp-kicker">IMPORTANT</span><h2>Always verify before <span>you apply.</span></h2><p>CareerPortal is an independent information platform. For application dates, eligibility, fees and other important details, always verify the information with the official authority or notification.</p></div>
+          <div className="cp-trust-points">
+            <div><CheckIcon /><div><strong>Official source first</strong><span>Check the original notification.</span></div></div>
+            <div><CheckIcon /><div><strong>Check eligibility</strong><span>Confirm qualification and age requirements.</span></div></div>
+            <div><CheckIcon /><div><strong>Check important dates</strong><span>Never rely on outdated information.</span></div></div>
+          </div>
+        </div></div>
+      </section>
+
+      {/* FINAL CTA */}
+      <section className="cp-final-cta">
+        <div className="cp-cta-grid-bg" />
+        <div className="cp-wide cp-final-cta-inner">
+          <div><span className="cp-kicker cp-kicker-light">START EXPLORING</span><h2>Your next opportunity<br />could be one search away.</h2><p>Explore jobs, exams, results, admit cards and education resources on CareerPortal.</p></div>
+          <div className="cp-final-actions"><Link href="/jobs" className="cp-white-button">Explore Jobs <ArrowIcon /></Link><Link href="/education" className="cp-dark-outline-button">Career Guidance <ArrowIcon /></Link></div>
         </div>
       </section>
     </main>
