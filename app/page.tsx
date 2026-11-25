@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import "./home-enhancements.css";
 
+
 const categories = [
   { title: "Government Jobs", description: "Latest recruitment notifications", href: "/jobs", icon: "▣", number: "01" },
   { title: "Private Jobs", description: "Companies & private opportunities", href: "/private-jobs", icon: "◆", number: "02" },

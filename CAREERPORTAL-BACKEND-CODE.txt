@@ -1,0 +1,1543 @@
+﻿
+========== app/api/admin/import-queue/route.ts ==========
+
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { getCurrentAdmin, getCurrentUser } from "@/lib/auth/admin";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    throw new Error("Supabase server environment variables are missing.");
+  }
+
+  return createClient(url, key, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+async function authorize() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return {
+      error: NextResponse.json(
+        { error: "Please log in first." },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const admin = await getCurrentAdmin();
+
+  if (!admin) {
+    return {
+      error: NextResponse.json(
+        { error: "Admin access required." },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return { error: null };
+}
+
+export async function GET() {
+  try {
+    const auth = await authorize();
+    if (auth.error) return auth.error;
+
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+      .from("cp_import_queue")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ items: data ?? [] });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Could not load import queue.";
+
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const auth = await authorize();
+    if (auth.error) return auth.error;
+
+    const body = await request.json();
+    const id = typeof body.id === "string" ? body.id.trim() : "";
+    const action = body.action;
+
+    if (!id || !["approve", "reject"].includes(action)) {
+      return NextResponse.json(
+        { error: "A valid item ID and action are required." },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getSupabase();
+
+    const { data: existing, error: findError } = await supabase
+      .from("cp_import_queue")
+      .select("id, status")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (findError) {
+      return NextResponse.json(
+        { error: findError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Queue item not found." },
+        { status: 404 }
+      );
+    }
+
+    if (existing.status === "published") {
+      return NextResponse.json(
+        { error: "This item is already published." },
+        { status: 409 }
+      );
+    }
+
+    const nextStatus = action === "approve" ? "approved" : "rejected";
+
+    const { data, error } = await supabase
+      .from("cp_import_queue")
+      .update({ status: nextStatus })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      item: data,
+      message:
+        action === "approve"
+          ? "Approved for review. This item has NOT been published."
+          : "Item rejected.",
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Could not update queue item.";
+
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+
+========== app/api/admin/import-sources/route.ts ==========
+
+import { NextResponse } from "next/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  getCurrentAdmin,
+  getCurrentUser,
+} from "@/lib/auth/admin";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const CONTENT_TYPES = [
+  "job",
+  "exam",
+  "result",
+  "admit_card",
+  "answer_key",
+  "syllabus",
+  "important_notice",
+  "education_admission",
+] as const;
+
+const SECTORS = [
+  "Central Government",
+  "State Government",
+  "Railway",
+  "Banking",
+  "Insurance",
+  "Defence",
+  "Police & Security",
+  "Education",
+  "Health & Medical",
+  "PSU",
+  "Courts",
+  "Ministry & Department",
+  "Research & Science",
+  "Private Jobs",
+  "Private Education",
+  "Other",
+] as const;
+
+function getServiceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    throw new Error("Supabase server configuration is missing.");
+  }
+
+  return createSupabaseClient(url, key, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+async function authorize() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return {
+      allowed: false,
+      status: 401,
+      message: "Please log in first.",
+    };
+  }
+
+  const admin = await getCurrentAdmin();
+
+  if (!admin) {
+    return {
+      allowed: false,
+      status: 403,
+      message: "Administrator access required.",
+    };
+  }
+
+  return { allowed: true, status: 200, message: "OK" };
+}
+
+function clean(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function validHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function validContentType(value: string): boolean {
+  return CONTENT_TYPES.includes(
+    value as (typeof CONTENT_TYPES)[number]
+  );
+}
+
+function validSector(value: string): boolean {
+  return SECTORS.includes(value as (typeof SECTORS)[number]);
+}
+
+function errorResponse(message: string, status: number) {
+  return NextResponse.json(
+    { success: false, error: message },
+    { status }
+  );
+}
+
+// GET: List registered sources.
+export async function GET() {
+  try {
+    const auth = await authorize();
+
+    if (!auth.allowed) {
+      return errorResponse(auth.message, auth.status);
+    }
+
+    const supabase = getServiceClient();
+
+    const { data, error } = await supabase
+      .from("cp_sources")
+      .select("*")
+      .order("institution_name", { ascending: true })
+      .limit(1000);
+
+    if (error) {
+      console.error("Import sources GET error:", error.message);
+      return errorResponse("Could not load import sources.", 500);
+    }
+
+    return NextResponse.json({
+      success: true,
+      count: data?.length ?? 0,
+      sources: data ?? [],
+    });
+  } catch (error) {
+    console.error("Import sources GET failed:", error);
+    return errorResponse("Unexpected server error.", 500);
+  }
+}
+
+// POST: Register a new official source.
+export async function POST(request: Request) {
+  try {
+    const auth = await authorize();
+
+    if (!auth.allowed) {
+      return errorResponse(auth.message, auth.status);
+    }
+
+    let body: Record<string, unknown>;
+
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse("Request body must be valid JSON.", 400);
+    }
+
+    const institutionName = clean(body.institution_name);
+    const sourceName = clean(body.source_name);
+    const sector = clean(body.sector) || "Other";
+    const officialUrl = clean(body.official_url);
+    const contentType = clean(body.content_type) || "important_notice";
+
+    if (!institutionName || !sourceName || !officialUrl) {
+      return errorResponse(
+        "Institution name, source name and official URL are required.",
+        400
+      );
+    }
+
+    if (!validHttpUrl(officialUrl)) {
+      return errorResponse("Enter a valid HTTP or HTTPS URL.", 400);
+    }
+
+    if (!validContentType(contentType)) {
+      return errorResponse("Unsupported content category.", 400);
+    }
+
+    if (!validSector(sector)) {
+      return errorResponse("Unsupported sector.", 400);
+    }
+
+    const supabase = getServiceClient();
+
+    const { data, error } = await supabase
+      .from("cp_sources")
+      .insert({
+        institution_name: institutionName,
+        source_name: sourceName,
+        sector,
+        official_url: officialUrl,
+        content_type: contentType,
+        is_active: body.is_active !== false,
+        updated_at: new Date().toISOString(),
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Import source insert error:", error.message);
+      return errorResponse(
+        error.code === "23505"
+          ? "This source may already exist."
+          : "Could not save the source. Check the database error in server logs.",
+        500
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Official source registered.",
+        source: data,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Import source POST failed:", error);
+    return errorResponse("Unexpected server error.", 500);
+  }
+}
+
+// PATCH: Update an existing source.
+export async function PATCH(request: Request) {
+  try {
+    const auth = await authorize();
+
+    if (!auth.allowed) {
+      return errorResponse(auth.message, auth.status);
+    }
+
+    let body: Record<string, unknown>;
+
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse("Request body must be valid JSON.", 400);
+    }
+
+    const id = clean(body.id);
+
+    if (!id) {
+      return errorResponse("Source ID is required.", 400);
+    }
+
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (body.institution_name !== undefined) {
+      const value = clean(body.institution_name);
+      if (!value) {
+        return errorResponse("Institution name cannot be empty.", 400);
+      }
+      updates.institution_name = value;
+    }
+
+    if (body.source_name !== undefined) {
+      const value = clean(body.source_name);
+      if (!value) {
+        return errorResponse("Source name cannot be empty.", 400);
+      }
+      updates.source_name = value;
+    }
+
+    if (body.official_url !== undefined) {
+      const value = clean(body.official_url);
+      if (!validHttpUrl(value)) {
+        return errorResponse("Enter a valid HTTP or HTTPS URL.", 400);
+      }
+      updates.official_url = value;
+    }
+
+    if (body.sector !== undefined) {
+      const value = clean(body.sector);
+      if (!validSector(value)) {
+        return errorResponse("Unsupported sector.", 400);
+      }
+      updates.sector = value;
+    }
+
+    if (body.content_type !== undefined) {
+      const value = clean(body.content_type);
+      if (!validContentType(value)) {
+        return errorResponse("Unsupported content category.", 400);
+      }
+      updates.content_type = value;
+    }
+
+    if (body.is_active !== undefined) {
+      if (typeof body.is_active !== "boolean") {
+        return errorResponse("is_active must be true or false.", 400);
+      }
+      updates.is_active = body.is_active;
+    }
+
+    const supabase = getServiceClient();
+
+    const { data, error } = await supabase
+      .from("cp_sources")
+      .update(updates)
+      .eq("id", id)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      console.error("Import source update error:", error.message);
+      return errorResponse("Could not update the source.", 500);
+    }
+
+    if (!data) {
+      return errorResponse("Source not found.", 404);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Source updated.",
+      source: data,
+    });
+  } catch (error) {
+    console.error("Import source PATCH failed:", error);
+    return errorResponse("Unexpected server error.", 500);
+  }
+}
+
+
+========== app/api/admin/import-sources/check/route.ts ==========
+
+import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
+import { getCurrentAdmin, getCurrentUser } from "@/lib/auth/admin";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+type ContentType =
+  | "exam"
+  | "result"
+  | "admit_card"
+  | "answer_key"
+  | "syllabus";
+
+type Candidate = {
+  title: string;
+  url: string;
+  content_type: ContentType;
+  fingerprint: string;
+};
+
+const MAX_HTML_BYTES = 5_000_000;
+const MAX_PAGES = 8;
+const MAX_CANDIDATES = 150;
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    throw new Error("Supabase environment variables are missing.");
+  }
+
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+async function authorize() {
+  const user = await getCurrentUser();
+  if (!user) return false;
+  return Boolean(await getCurrentAdmin());
+}
+
+function cleanText(value: string) {
+  return value
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_, n) => {
+      const number = Number(n);
+      return number <= 0x10ffff ? String.fromCodePoint(number) : " ";
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => {
+      const number = parseInt(n, 16);
+      return number <= 0x10ffff ? String.fromCodePoint(number) : " ";
+    })
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Only the five supported content types are returned.
+ * Exam-related recruitment dates and schedules belong to "exam".
+ * Generic notices and education admissions are deliberately excluded.
+ */
+function classifyNotice(value: string): ContentType | null {
+  const text = value.toLowerCase().replace(/[_-]+/g, " ");
+
+  if (
+    /\b(result|results|merit list|cut.?off|score ?card|final selection|selection list|provisional selection|marks list|rank list)\b/.test(text)
+  ) {
+    return "result";
+  }
+
+  if (
+    /\b(admit card|hall ticket|e admission certificate|call letter|exam city|city intimation|intimation slip|download admission certificate)\b/.test(text)
+  ) {
+    return "admit_card";
+  }
+
+  if (
+    /\b(answer key|answer keys|response sheet|question paper objection|objection tracker|provisional answers?)\b/.test(text)
+  ) {
+    return "answer_key";
+  }
+
+  if (
+    /\b(syllabus|exam pattern|examination scheme|course of examination)\b/.test(text)
+  ) {
+    return "syllabus";
+  }
+
+  // Recruitment and its related exam schedules share one category: exam.
+  if (
+    /\b(recruitment|vacanc(?:y|ies)|apply online|application form|employment notice|exam notification|advertisement no\.?|advertisement for|engagement of|direct recruitment|recruitment notice|recruitment advertisement|selection process|exam calendar|examination calendar|exam date|examination date|date sheet|datesheet|time table|timetable|schedule of examination|exam schedule|written examination schedule|revised exam date|examination programme|examination program)\b/.test(text)
+  ) {
+    return "exam";
+  }
+
+  // Do not import generic notices, announcements, press releases,
+  // tenders, general advertisements, or education admissions.
+  return null;
+}
+
+function usefulTitle(title: string) {
+  const normalized = title
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.:|â€“â€”-]+$/g, "")
+    .trim();
+
+  if (normalized.length < 5 || normalized.length > 300) {
+    return false;
+  }
+
+  const ignored = [
+    "home",
+    "homepage",
+    "about us",
+    "contact us",
+    "contact",
+    "login",
+    "log in",
+    "sign in",
+    "register",
+    "skip to main content",
+    "screen reader access",
+    "accessibility",
+    "privacy policy",
+    "terms and conditions",
+    "sitemap",
+    "feedback",
+    "help",
+    "search",
+    "photo gallery",
+    "view all",
+    "read more",
+    "click here",
+    "know more",
+    "important links",
+    "quick links",
+    "download",
+    "click to download",
+    "view details",
+    "read more...",
+    "notification",
+    "notifications",
+    "important notice",
+    "notice",
+    "notices",
+    "announcements",
+    "announcement",
+    "advertisements",
+    "advertisement",
+    "complete list of advertisements",
+    "all advertisements",
+    "press release",
+    "press releases",
+    "tenders",
+    "what's new",
+    "whats new",
+    "latest news",
+    "latest updates",
+    "education admission",
+    "admission notice",
+  ];
+
+  return !ignored.includes(normalized);
+}
+
+function fingerprintFor(url: string, title: string) {
+  const normalizedUrl = url.split("#")[0].replace(/\/+$/, "").toLowerCase();
+  const normalizedTitle = title.toLowerCase().replace(/\s+/g, " ").trim();
+
+  return createHash("sha256")
+    .update(`${normalizedUrl}|${normalizedTitle}`)
+    .digest("hex");
+}
+
+function isPublicHost(hostname: string) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    host.startsWith("127.") ||
+    host.startsWith("10.") ||
+    host.startsWith("192.168.") ||
+    /^169\.254\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function parseHttpUrl(value: string, base?: string) {
+  try {
+    const url = new URL(value, base);
+
+    if (!["http:", "https:"].includes(url.protocol)) return null;
+    if (url.username || url.password) return null;
+    if (!isPublicHost(url.hostname)) return null;
+
+    url.hash = "";
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function isAllowedOfficialUrl(candidate: URL, sourceUrl: URL) {
+  const host = candidate.hostname.toLowerCase();
+  const sourceHost = sourceUrl.hostname.toLowerCase();
+
+  if (host === sourceHost || host.endsWith(`.${sourceHost}`)) {
+    return true;
+  }
+
+  return (
+    host.endsWith(".gov.in") ||
+    host === "gov.in" ||
+    host.endsWith(".nic.in") ||
+    host === "nic.in" ||
+    host.endsWith(".ac.in") ||
+    host === "ac.in" ||
+    host.endsWith(".edu.in") ||
+    host === "edu.in"
+  );
+}
+
+async function fetchPage(initialUrl: string, sourceUrl: URL) {
+  let current = parseHttpUrl(initialUrl);
+
+  if (!current || !isAllowedOfficialUrl(current, sourceUrl)) {
+    throw new Error("The URL is not an allowed official source URL.");
+  }
+
+  for (let attempt = 0; attempt <= 4; attempt++) {
+    const response = await fetch(current.toString(), {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(15000),
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; CareerPortalBot/1.0)",
+        Accept: "text/html,application/xhtml+xml,application/pdf,*/*;q=0.8",
+      },
+      cache: "no-store",
+    });
+
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+
+      if (!location) {
+        throw new Error("Redirect response did not include a location.");
+      }
+
+      if (attempt === 4) {
+        throw new Error("Too many redirects from official website.");
+      }
+
+      const next = parseHttpUrl(location, current.toString());
+
+      if (!next || !isAllowedOfficialUrl(next, sourceUrl)) {
+        throw new Error(
+          "Official website redirected outside allowed official domains."
+        );
+      }
+
+      current = next;
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Official website returned HTTP ${response.status}.`);
+    }
+
+    const type = (response.headers.get("content-type") || "").toLowerCase();
+
+    if (
+      !type.includes("text/html") &&
+      !type.includes("application/xhtml+xml")
+    ) {
+      return {
+        url: current.toString(),
+        type,
+        html: "",
+      };
+    }
+
+    const html = (await response.text()).slice(0, MAX_HTML_BYTES);
+
+    return {
+      url: current.toString(),
+      type,
+      html,
+    };
+  }
+
+  throw new Error("Could not fetch the official page.");
+}
+
+function readAttributes(raw: string) {
+  const attributes: Record<string, string> = {};
+  const pattern =
+    /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
+
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(raw)) !== null) {
+    attributes[match[1].toLowerCase()] =
+      match[2] ?? match[3] ?? match[4] ?? "";
+  }
+
+  return attributes;
+}
+
+function filenameTitle(url: URL) {
+  let filename = url.pathname.split("/").filter(Boolean).pop() || "";
+
+  try {
+    filename = decodeURIComponent(filename);
+  } catch {
+    // Keep the original filename if URL encoding is invalid.
+  }
+
+  return filename
+    .replace(/\.pdf$/i, "")
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\d{8,}\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractAnchors(html: string, baseUrl: string) {
+  const links: Array<{ title: string; url: string }> = [];
+  const anchorPattern = /<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi;
+  const base = new URL(baseUrl);
+
+  let match: RegExpExecArray | null;
+
+  while ((match = anchorPattern.exec(html)) !== null) {
+    const attributes = readAttributes(match[1] || "");
+    const href = attributes.href || attributes["data-href"] || "";
+
+    if (!href || /^(javascript:|mailto:|tel:|data:)/i.test(href)) {
+      continue;
+    }
+
+    const url = parseHttpUrl(href, baseUrl);
+
+    if (!url || !isAllowedOfficialUrl(url, base)) continue;
+
+    const title = cleanText(
+      match[2] ||
+        attributes.title ||
+        attributes["aria-label"] ||
+        attributes.alt ||
+        ""
+    );
+
+    links.push({ title, url: url.toString() });
+  }
+
+  return links;
+}
+
+function discoverLinks(html: string, pageUrl: string, sourceUrl: URL) {
+  const candidates = new Map<string, Candidate>();
+  const links = extractAnchors(html, pageUrl);
+  const crawlUrls: string[] = [];
+  const pageHost = new URL(pageUrl).hostname.toLowerCase();
+
+  for (const link of links) {
+    const url = new URL(link.url);
+    const inferredTitle = link.title || filenameTitle(url);
+    const pathAndTitle = `${link.title} ${url.pathname} ${url.search}`;
+
+    const looksLikePdf = /\.pdf$/i.test(url.pathname);
+
+    const looksLikeRelevantPage =
+      /\b(recruitment|career|careers|vacancy|vacancies|result|results|admit.?card|answer.?key|syllabus|examination|exam.?calendar|exam.?date)\b/i.test(
+        `${link.title} ${url.pathname}`
+      );
+
+    // Crawl only relevant pages on the same host.
+    if (
+      url.hostname.toLowerCase() === pageHost &&
+      looksLikeRelevantPage &&
+      !looksLikePdf &&
+      crawlUrls.length < MAX_PAGES
+    ) {
+      crawlUrls.push(url.toString());
+    }
+
+    const type = classifyNotice(`${pathAndTitle} ${inferredTitle}`);
+
+    // Generic notices and unsupported content never enter the queue.
+    if (!type) continue;
+
+    let title = inferredTitle;
+
+    if (!usefulTitle(title)) {
+      title = filenameTitle(url);
+    }
+
+    if (!usefulTitle(title)) continue;
+
+    // Do not use a generic link label as a record title.
+    if (
+      /^(notice|notices|notification|notifications|advertisement|advertisements|announcements|press release|what.s new)$/i.test(
+        title.trim()
+      )
+    ) {
+      continue;
+    }
+
+    const fingerprint = fingerprintFor(url.toString(), title);
+
+    candidates.set(fingerprint, {
+      title,
+      url: url.toString(),
+      content_type: type,
+      fingerprint,
+    });
+
+    if (candidates.size >= MAX_CANDIDATES) break;
+  }
+
+  return {
+    candidates: Array.from(candidates.values()),
+    crawlUrls: [...new Set(crawlUrls)],
+  };
+}
+
+export async function POST(request: Request) {
+  let runId: string | null = null;
+  let sourceId: string | null = null;
+  let supabase: ReturnType<typeof getSupabase> | null = null;
+
+  try {
+    if (!(await authorize())) {
+      return NextResponse.json(
+        { success: false, error: "Admin access required." },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
+    sourceId = typeof body.source_id === "string" ? body.source_id : null;
+
+    if (!sourceId) {
+      return NextResponse.json(
+        { success: false, error: "source_id is required." },
+        { status: 400 }
+      );
+    }
+
+    supabase = getSupabase();
+
+    const { data: source, error: sourceError } = await supabase
+      .from("cp_sources")
+      .select("*")
+      .eq("id", sourceId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (sourceError) throw new Error(sourceError.message);
+
+    if (!source) {
+      return NextResponse.json(
+        { success: false, error: "Active source not found." },
+        { status: 404 }
+      );
+    }
+
+    const sourceUrl = parseHttpUrl(source.official_url);
+
+    if (!sourceUrl) {
+      throw new Error("The saved source URL is invalid or not public.");
+    }
+
+    const { data: run, error: runError } = await supabase
+      .from("cp_import_runs")
+      .insert({
+        source_id: source.id,
+        status: "running",
+        started_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (runError || !run) {
+      throw new Error(runError?.message || "Could not create import run.");
+    }
+
+    runId = run.id;
+
+    const firstPage = await fetchPage(sourceUrl.toString(), sourceUrl);
+
+    if (!firstPage.html) {
+      throw new Error(
+        `Source did not return an HTML page (${firstPage.type || "unknown content type"}).`
+      );
+    }
+
+    const discoveredMap = new Map<string, Candidate>();
+    const pagesToScan = discoverLinks(
+      firstPage.html,
+      firstPage.url,
+      sourceUrl
+    );
+
+    for (const item of pagesToScan.candidates) {
+      discoveredMap.set(item.fingerprint, item);
+    }
+
+    const crawlList = pagesToScan.crawlUrls.slice(0, MAX_PAGES);
+    const pageErrors: string[] = [];
+
+    for (const pageUrl of crawlList) {
+      try {
+        const page = await fetchPage(pageUrl, sourceUrl);
+        if (!page.html) continue;
+
+        const results = discoverLinks(page.html, page.url, sourceUrl);
+
+        for (const item of results.candidates) {
+          discoveredMap.set(item.fingerprint, item);
+
+          if (discoveredMap.size >= MAX_CANDIDATES) break;
+        }
+
+        if (discoveredMap.size >= MAX_CANDIDATES) break;
+      } catch (error) {
+        pageErrors.push(
+          `${new URL(pageUrl).pathname}: ${
+            error instanceof Error ? error.message : "Page scan failed"
+          }`
+        );
+      }
+    }
+
+    const discovered = Array.from(discoveredMap.values()).slice(
+      0,
+      MAX_CANDIDATES
+    );
+
+    const existingFingerprints = new Set<string>();
+    const existingUrls = new Set<string>();
+
+    for (let i = 0; i < discovered.length; i += 50) {
+      const batch = discovered.slice(i, i + 50);
+
+      const [fingerprintResult, urlResult] = await Promise.all([
+        supabase
+          .from("cp_import_queue")
+          .select("fingerprint")
+          .in(
+            "fingerprint",
+            batch.map((item) => item.fingerprint)
+          ),
+        supabase
+          .from("cp_import_queue")
+          .select("official_url")
+          .in(
+            "official_url",
+            batch.map((item) => item.url)
+          ),
+      ]);
+
+      if (fingerprintResult.error) {
+        throw new Error(fingerprintResult.error.message);
+      }
+
+      if (urlResult.error) {
+        throw new Error(urlResult.error.message);
+      }
+
+      for (const row of fingerprintResult.data || []) {
+        if (row.fingerprint) existingFingerprints.add(row.fingerprint);
+      }
+
+      for (const row of urlResult.data || []) {
+        if (row.official_url) existingUrls.add(row.official_url);
+      }
+    }
+
+    const newItems = discovered.filter(
+      (item) =>
+        !existingFingerprints.has(item.fingerprint) &&
+        !existingUrls.has(item.url)
+    );
+
+    let importedCount = 0;
+
+    for (let i = 0; i < newItems.length; i += 50) {
+      const batch = newItems.slice(i, i + 50);
+
+      const rows = batch.map((item) => ({
+        source_id: source.id,
+        run_id: runId,
+        title: item.title,
+        institution_name: source.institution_name,
+        content_type: item.content_type,
+        official_url: item.url,
+        notification_url: item.url,
+        pdf_url: /\.pdf(?:$|[?#])/i.test(item.url) ? item.url : null,
+        fingerprint: item.fingerprint,
+        status: "pending",
+        raw_content: item.title,
+        extracted_data: {
+          discovery_method: "official_html_crawl",
+          source_name: source.source_name,
+          source_url: source.official_url,
+          discovered_from: firstPage.url,
+          discovered_at: new Date().toISOString(),
+          review_required: true,
+          details_extracted: false,
+        },
+      }));
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("cp_import_queue")
+        .insert(rows)
+        .select("id");
+
+      if (insertError) throw new Error(insertError.message);
+
+      importedCount += inserted?.length || 0;
+    }
+
+    const finishedAt = new Date().toISOString();
+    const duplicateCount = discovered.length - importedCount;
+    const hasPageErrors = pageErrors.length > 0;
+
+    const { error: finishError } = await supabase
+      .from("cp_import_runs")
+      .update({
+        status: hasPageErrors ? "partial" : "completed",
+        found_count: discovered.length,
+        imported_count: importedCount,
+        duplicate_count: duplicateCount,
+        error_count: pageErrors.length,
+        error_message: pageErrors.length
+          ? pageErrors.join("\n").slice(0, 2000)
+          : null,
+        finished_at: finishedAt,
+      })
+      .eq("id", runId);
+
+    if (finishError) throw new Error(finishError.message);
+
+    await supabase
+      .from("cp_sources")
+      .update({
+        last_checked_at: finishedAt,
+        last_status: hasPageErrors ? "partial" : "completed",
+        last_error: pageErrors.length
+          ? pageErrors.join("\n").slice(0, 2000)
+          : null,
+        updated_at: finishedAt,
+      })
+      .eq("id", source.id);
+
+    return NextResponse.json({
+      success: true,
+      message: "Official source scan completed.",
+      source: source.source_name,
+      run_id: runId,
+      pages_scanned: 1 + crawlList.length,
+      found_count: discovered.length,
+      imported_count: importedCount,
+      duplicate_count: duplicateCount,
+      page_errors: pageErrors,
+      note:
+        "Only supported exams/recruitment, results, admit cards, answer keys and syllabus links are queued. Exam-related recruitment schedules use the exam category. Generic notices and education admissions are excluded. Items remain pending review; full PDF details are not extracted yet.",
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unexpected import error.";
+
+    if (supabase && runId) {
+      await supabase
+        .from("cp_import_runs")
+        .update({
+          status: "failed",
+          error_count: 1,
+          error_message: message.slice(0, 2000),
+          finished_at: new Date().toISOString(),
+        })
+        .eq("id", runId);
+    }
+
+    if (supabase && sourceId) {
+      const finishedAt = new Date().toISOString();
+
+      await supabase
+        .from("cp_sources")
+        .update({
+          last_checked_at: finishedAt,
+          last_status: "failed",
+          last_error: message.slice(0, 2000),
+          updated_at: finishedAt,
+        })
+        .eq("id", sourceId);
+    }
+
+    return NextResponse.json(
+      { success: false, error: message, run_id: runId },
+      { status: 500 }
+    );
+  }
+}
+
+
+========== app/api/admin/import-sources/history/route.ts ==========
+
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { getCurrentAdmin, getCurrentUser } from "@/lib/auth/admin";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Login required" }, { status: 401 });
+    }
+
+    const admin = await getCurrentAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceKey) {
+      return NextResponse.json(
+        { error: "Supabase environment variables are missing" },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const [runsResult, sourcesResult] = await Promise.all([
+      supabase.from("cp_import_runs").select("*").limit(200),
+      supabase
+        .from("cp_sources")
+        .select("id,source_name,institution_name,official_url"),
+    ]);
+
+    if (runsResult.error) {
+      return NextResponse.json(
+        { error: runsResult.error.message },
+        { status: 500 }
+      );
+    }
+
+    if (sourcesResult.error) {
+      return NextResponse.json(
+        { error: sourcesResult.error.message },
+        { status: 500 }
+      );
+    }
+
+    const sources = sourcesResult.data ?? [];
+    const sourceMap = new Map(
+      sources.map((source) => [String(source.id), source])
+    );
+
+    const runs = (runsResult.data ?? [])
+      .map((run) => {
+        const source = sourceMap.get(String(run.source_id ?? ""));
+        return {
+          ...run,
+          source_name:
+            source?.institution_name ||
+            source?.source_name ||
+            "Unknown source",
+          source_url: source?.official_url ?? null,
+        };
+      })
+      .sort((a, b) => {
+        const dateA = Date.parse(
+          String(a.created_at ?? a.started_at ?? a.createdAt ?? "")
+        ) || 0;
+        const dateB = Date.parse(
+          String(b.created_at ?? b.started_at ?? b.createdAt ?? "")
+        ) || 0;
+        return dateB - dateA;
+      });
+
+    return NextResponse.json({ success: true, runs });
+  } catch (error) {
+    console.error("Import history error:", error);
+    return NextResponse.json(
+      { error: "Could not load monitoring history" },
+      { status: 500 }
+    );
+  }
+}
+
+
+========== lib/supabase/admin.ts ==========
+import { createClient } from "@supabase/supabase-js";
+
+export function createAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) throw new Error("Supabase server environment variables are missing.");
+
+  return createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+
+========== lib/auth/admin.ts ==========
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+
+export type AdminRole = "admin" | "super_admin" | "superadmin";
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  full_name?: string | null;
+  role: AdminRole;
+  is_active: boolean;
+};
+
+function createServiceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    throw new Error("Supabase service role environment variables are missing.");
+  }
+
+  return createClient(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
+/**
+ * Returns the currently logged-in Supabase user.
+ */
+export async function getCurrentUser() {
+  const supabase = await createServerClient();
+
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    return null;
+  }
+
+  return user;
+}
+
+/**
+ * Checks whether the currently logged-in user
+ * exists in admin_users and is active.
+ */
+export async function getCurrentAdmin(): Promise<AdminUser | null> {
+  const user = await getCurrentUser();
+
+  if (!user?.email) {
+    return null;
+  }
+
+  const email = user.email.trim().toLowerCase();
+
+  const adminSupabase = createServiceClient();
+
+  const { data, error } = await adminSupabase
+    .from("admin_users")
+    .select("id,email,full_name,role,is_active")
+    .ilike("email", email)
+    .eq("is_active", true)
+    .in("role", ["admin", "super_admin", "superadmin"])
+    .maybeSingle();
+
+  if (error) {
+    console.error("Admin verification error:", error);
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    email: data.email,
+    full_name: data.full_name ?? null,
+    role: data.role as AdminRole,
+    is_active: data.is_active,
+  };
+}
+
+/**
+ * Returns true when the logged-in user is an active admin.
+ */
+export async function isCurrentAdmin() {
+  const admin = await getCurrentAdmin();
+  return Boolean(admin);
+}
+
+/**
+ * Returns true when the logged-in user is a Super Admin.
+ */
+export async function isCurrentSuperAdmin() {
+  const admin = await getCurrentAdmin();
+
+  if (!admin) {
+    return false;
+  }
+
+  return (
+    admin.role === "super_admin" ||
+    admin.role === "superadmin"
+  );
+}
+
+========== lib/supabase/server.ts ==========
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
+export async function createClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, {
+                ...options,
+                path: "/",
+              });
+            });
+          } catch {
+            // Server Components cannot always modify cookies.
+          }
+        },
+      },
+    }
+  );
+}
+
+========== lib/admin-auth.ts ==========
+import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  role: string;
+  active: boolean;
+};
+
+export async function getCurrentAdmin(): Promise<AdminUser | null> {
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user?.email) {
+      return null;
+    }
+
+    const email = user.email.trim().toLowerCase();
+
+    const adminClient = createSupabaseAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    const { data, error } = await adminClient
+      .from("admin_users")
+      .select("id,email,role,active")
+      .ilike("email", email)
+      .eq("active", true)
+      .in("role", ["admin", "super_admin", "superadmin"])
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return {
+      id: data.id,
+      email: data.email,
+      role: data.role,
+      active: data.active,
+    };
+  } catch (error) {
+    console.error("getCurrentAdmin error:", error);
+    return null;
+  }
+}
+
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  const admin = await getCurrentAdmin();
+  return Boolean(admin);
+}

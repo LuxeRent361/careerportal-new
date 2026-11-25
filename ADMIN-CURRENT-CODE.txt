@@ -712,23 +712,6 @@ const managementMenu: MenuItem[] = [
   },
 ];
 
-const automationMenu: MenuItem[] = [
-  {
-    href: "/admin/sources",
-    label: "Source Monitoring",
-    icon: "ðŸŒ",
-  },
-  {
-    href: "/admin/import-queue",
-    label: "Import Queue",
-    icon: "ðŸ“¥",
-  },
-  {
-    href: "/admin/sources/history",
-    label: "Monitoring History",
-    icon: "ðŸ“Š",
-  },
-];
 
 const systemMenu: MenuItem[] = [
   {
@@ -791,12 +774,6 @@ export default function AdminSidebar() {
         <SidebarSection
           title="CONTENT MANAGEMENT"
           items={managementMenu}
-          pathname={pathname}
-        />
-
-        <SidebarSection
-          title="AUTOMATION"
-          items={automationMenu}
           pathname={pathname}
         />
 

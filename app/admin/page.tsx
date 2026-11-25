@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
@@ -216,15 +216,46 @@ export default async function AdminDashboardPage() {
               href="/admin/testimonials"
               description="Review user feedback"
             />
+          </div>
+        </section>
 
-            <CountCard
+        
+        {/* Official Source Import */}
+        <section className="mt-8">
+          <div className="mb-4">
+            <h2 className="text-lg font-extrabold text-slate-900">
+              Official Source Import
+            </h2>
+            <p className="text-sm text-slate-500">
+              सरकारी वेबसाइटों से notices खोजें, review करें और फिर publish करें।
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <AdminAction
+              title="Official Source Monitor"
+              description="SSC, UPSC, Railway और दूसरी official websites को scan करें।"
+              href="/admin/import-sources"
+              icon="🔎"
+            />
+
+            <AdminAction
               title="Import Queue"
-              count={0}
+              description="नए मिले notices की details जाँचें, edit करें और review के बाद publish करें।"
               href="/admin/import-queue"
-              description="Review source imports"
+              icon="📥"
+            />
+
+            <AdminAction
+              title="Government Exams"
+              description="सरकारी भर्ती, application dates, exam dates और संबंधित notices manage करें।"
+              href="/admin/exams"
+              icon="📋"
             />
           </div>
         </section>
+          
+
 
         {/* Main Controls */}
         <section className="mt-10">
@@ -243,82 +274,46 @@ export default async function AdminDashboardPage() {
               title="Government Jobs"
               description="Create, edit, publish and remove government job notifications."
               href="/admin/jobs"
-              icon="💼"
+              icon="ðŸ’¼"
             />
 
             <AdminAction
               title="Private Jobs"
               description="Manage private and company job opportunities."
               href="/admin/private-jobs"
-              icon="🏢"
+              icon="ðŸ¢"
             />
 
             <AdminAction
               title="Exams"
               description="Manage exam notifications, dates and official links."
               href="/admin/exams"
-              icon="📝"
+              icon="ðŸ“"
             />
 
             <AdminAction
               title="Results"
               description="Publish and manage examination results."
               href="/admin/results"
-              icon="📊"
+              icon="ðŸ“Š"
             />
 
             <AdminAction
               title="Admit Cards"
               description="Manage admit card releases and download links."
               href="/admin/admit-cards"
-              icon="🎫"
+              icon="ðŸŽ«"
             />
 
             <AdminAction
               title="Education"
               description="Manage courses, admissions and educational information."
               href="/admin/education"
-              icon="🎓"
+              icon="ðŸŽ“"
             />
           </div>
         </section>
 
-        {/* Automation */}
-        <section className="mt-10">
-          <div className="mb-4">
-            <h2 className="text-lg font-extrabold text-slate-900">
-              Automation & Sources
-            </h2>
-
-            <p className="text-sm text-slate-500">
-              Monitor official sources and review automatically discovered
-              content.
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <AdminAction
-              title="Source Monitoring"
-              description="Check official sources and monitor source health."
-              href="/admin/sources"
-              icon="🌐"
-            />
-
-            <AdminAction
-              title="Import Queue"
-              description="Review, approve, reject and publish discovered content."
-              href="/admin/import-queue"
-              icon="📥"
-            />
-
-            <AdminAction
-              title="Monitoring History"
-              description="See source runs, successes, failures and errors."
-              href="/admin/sources/history"
-              icon="📈"
-            />
-          </div>
-        </section>
 
         {/* Administration */}
         <section className="mt-10">
@@ -337,42 +332,42 @@ export default async function AdminDashboardPage() {
               title="Users"
               description="View registered users and manage account activity."
               href="/admin/users"
-              icon="👥"
+              icon="ðŸ‘¥"
             />
 
             <AdminAction
               title="Admin Access"
               description="Manage authorized admin accounts and roles."
               href="/admin/admin-users"
-              icon="🔐"
+              icon="ðŸ”"
             />
 
             <AdminAction
               title="Activity Logs"
               description="Track important administrative actions and system events."
               href="/admin/logs"
-              icon="📋"
+              icon="ðŸ“‹"
             />
 
             <AdminAction
               title="Notifications"
               description="View new source alerts and important admin notifications."
               href="/admin/notifications"
-              icon="🔔"
+              icon="ðŸ””"
             />
 
             <AdminAction
               title="Website Settings"
               description="Control website configuration and maintenance mode."
               href="/admin/settings"
-              icon="⚙️"
+              icon="âš™ï¸"
             />
 
             <AdminAction
               title="Homepage Control"
               description="Manage homepage sections, featured content and visibility."
               href="/admin/homepage"
-              icon="🏠"
+              icon="ðŸ "
             />
           </div>
         </section>
@@ -458,13 +453,7 @@ export default async function AdminDashboardPage() {
               >
                 + Add Education
               </Link>
-
-              <Link
-                href="/admin/sources"
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-              >
-                Check Sources
-              </Link>
+    
             </div>
           </div>
         </section>
@@ -500,7 +489,7 @@ function CountCard({
         </div>
 
         <span className="text-lg text-slate-300 transition group-hover:text-blue-500">
-          →
+          â†’
         </span>
       </div>
     </Link>
@@ -535,7 +524,7 @@ function AdminAction({
             </h3>
 
             <span className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-600">
-              →
+              â†’
             </span>
           </div>
 
@@ -547,3 +536,4 @@ function AdminAction({
     </Link>
   );
 }
+

@@ -77,7 +77,7 @@ const managementMenu: MenuItem[] = [
 
 const automationMenu: MenuItem[] = [
   {
-    href: "/admin/sources",
+    href: "/admin/import-sources",
     label: "Source Monitoring",
     icon: "🌐",
   },
@@ -87,7 +87,7 @@ const automationMenu: MenuItem[] = [
     icon: "📥",
   },
   {
-    href: "/admin/sources/history",
+    href: "/admin/import-sources/history",
     label: "Monitoring History",
     icon: "📊",
   },
